@@ -101,10 +101,12 @@ int main( int argc, char* argv[])
 
     Mat outPut;
 
+    vector<Mat> homographys;
+
     for(int i = 0; i < images.size() - 1; i++){
         SurfFeatureDetector detector;
-        Mat img1 = outPut;
-        Mat img2 = images[i+1];
+        Mat img1 = images[i];
+        Mat img2 = images[i + 1];
 
         vector< KeyPoint> keyPoints1, keyPoints2;
         detector.detect( img1, keyPoints1);
@@ -145,39 +147,89 @@ int main( int argc, char* argv[])
         Mat img2Pos( matches.size(), 1, CV_32FC2);
 
         // naplneni matic pozicemi korespondujicich oblasti
-        for( int i = 0; i < (int)matches.size(); i++){
-            img1Pos.at< Vec2f>( i)[0] = keyPoints1[ matches[ i].queryIdx].pt.x;
-            img1Pos.at< Vec2f>( i)[1] = keyPoints1[ matches[ i].queryIdx].pt.y;
-            img2Pos.at< Vec2f>( i)[0] = keyPoints2[ matches[ i].trainIdx].pt.x;
-            img2Pos.at< Vec2f>( i)[1] = keyPoints2[ matches[ i].trainIdx].pt.y;
+        for( int j = 0; j < (int)matches.size(); j++){
+            img1Pos.at< Vec2f>( j)[0] = keyPoints1[ matches[ j].queryIdx].pt.x;
+            img1Pos.at< Vec2f>( j)[1] = keyPoints1[ matches[ j].queryIdx].pt.y;
+            img2Pos.at< Vec2f>( j)[0] = keyPoints2[ matches[ j].trainIdx].pt.x;
+            img2Pos.at< Vec2f>( j)[1] = keyPoints2[ matches[ j].trainIdx].pt.y;
         }
 
         // Doplnte vypocet 3x3 matice homografie s vyuzitim algoritmu RANSAC. Pouzijte jdenu funkci knihovny OpenCV.
-        Mat homography = findHomography(img1Pos, img2Pos, CV_RANSAC);
+        homographys.push_back(findHomography(img1Pos, img2Pos, CV_RANSAC));
 
-        // Vysledny spojeny obraz budeme chtit vykreslit do outputBuffer tak, aby se dotykal okraju, ale nepresahoval je.
-        // "Prilepime" obrazek 2 k prvnimu. Tuto "slepeninu" je potreba zvetsit a posunout, aby byla na pozadovane pozici.
-        // K tomuto potrebujeme zjistit maximalni a minimalni souradnice vykreslenych obrazu. U obrazu 1 je to jednoduche, minima a maxima se
-        // ziskaji primo z rozmeru obrazu. U obrazku 2 musime pomoci drive ziskane homografie promitnout do prostoru obrazku 1 jeho rohove body.
+    }
 
-        float minX = 0;
-        float minY = 0;
-        float maxX = (float) img1.cols;
-        float maxY = (float) img1.rows;
+    float minX = 0;
+    float minY = 0;
+    float maxX = (float) images[0].cols;
+    float maxY = (float) images[0].rows;
 
+    Mat homography;
+    homographys[0].copyTo(homography);
+
+    for(int i = 0; i < images.size(); i++){
         // rohy obrazku 2
         vector< Vec3d> corners;
         corners.push_back( Vec3d( 0, 0, 1));
-        corners.push_back( Vec3d( img2.cols, 0, 1));
-        corners.push_back( Vec3d( img2.cols, img2.rows, 1));
-        corners.push_back( Vec3d( 0, img2.rows, 1));
+        corners.push_back( Vec3d( images[i].cols, 0, 1));
+        corners.push_back( Vec3d( images[i].cols, images[i].rows, 1));
+        corners.push_back( Vec3d( 0, images[i].rows, 1));
 
-        // promitnuti rohu obrazku 2 do prosotoru obrazku 1 a upraveni minim a maxim
-        for( int i = 0; i < (int)corners.size();i ++){
+        if(i > 1){
+            homography = homographys[i - 1] * homography;
 
-            // Doplnte promitnuti Mat( corners[ i]) do prostoru obrazku 1 pomoci homography.
-            // Dejte si pozor odkud kam homography je. Podle toho pouzijte homography, nebo homography.inv().
-            Mat projResult = homography.inv() * Mat( corners[i]);
+            for( int j = 0; j < (int)corners.size(); j++){
+                // Doplnte promitnuti Mat( corners[ i]) do prostoru obrazku 1 pomoci homography.
+                // Dejte si pozor odkud kam homography je. Podle toho pouzijte homography, nebo homography.inv().
+                Mat projResult = homography.inv() * Mat( corners[j]);
+
+                minX = std::min( minX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
+                maxX = std::max( maxX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
+                minY = std::min( minY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
+                maxY = std::max( maxY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
+            }
+
+        }
+    }
+
+    std::cerr << "minX " << minX << std::endl;
+    std::cerr << "minY " << minY << std::endl;
+    std::cerr << "maxX " << maxX << std::endl;
+    std::cerr << "maxY " << maxY << std::endl;
+
+    Mat outputBuffer = Mat::zeros( maxY - minY, maxX - minX, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
+    Mat translateMatrix = Mat::eye( 3, 3, CV_64F);
+
+    homographys[0].copyTo(homography);
+
+
+    minX = 0;
+    minY = 0;
+    maxX = (float) images[0].cols;
+    maxY = (float) images[0].rows;
+
+    for(int i = 0; i < images.size(); i++){
+        // rohy obrazku 2
+        vector< Vec3d> corners;
+        corners.push_back( Vec3d( 0, 0, 1));
+        corners.push_back( Vec3d( images[i].cols, 0, 1));
+        corners.push_back( Vec3d( images[i].cols, images[i].rows, 1));
+        corners.push_back( Vec3d( 0, images[i].rows, 1));
+
+        if(i > 1){
+            homography = homographys[i - 1] * homography;
+
+            std::cerr << "homografie " << std::endl;
+            for(int i = 0; i < 3 ; i++){
+                for(int j = 0; j < 3; j++){
+                    std::cerr << homography.at<float>(Point(i,j)) << " ";
+                }
+                cerr << endl;
+            }
+        }
+
+        for( int j = 0; j < (int)corners.size(); j++){
+            Mat projResult = homography.inv() * Mat( corners[j]);
 
             minX = std::min( minX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
             maxX = std::max( maxX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
@@ -185,53 +237,40 @@ int main( int argc, char* argv[])
             maxY = std::max( maxY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
         }
 
-
-
-
-        // Posuneme a zvetseme/zmenseme vysledny spojeny obrazek tak, by vysledny byl co nejvetsi, ale aby byl uvnitr vystupniho bufferu.
-
-        std::cerr << "minX " << minX << std::endl;
-        std::cerr << "minY " << minY << std::endl;
-        std::cerr << "maxX " << maxX << std::endl;
-        std::cerr << "maxY " << maxY << std::endl;
-
-        // Zmena velikosti musi byt takova, aby se nam vysledek vesel na vysku i na sirku
-        // vystupni buffer pro vykresleni spojenych obrazku
-        Mat outputBuffer = Mat::zeros( maxY - minY, maxX - minX, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
-
-        //double scaleFactor = min( outputBuffer.cols / ( maxX - minX), outputBuffer.rows / ( maxY - minY));
-
-
-
-        // Doplnte pripraveni matice, ktera zmeni velikost o scaleFactor (vynasobeni timto faktorem) a posune vysledek o -minX a -minY.
-        // Po tomto bude obrazek uprostred.
-        Mat scaleMatrix = Mat::eye( 3, 3, CV_64F);
-        Mat translateMatrix = Mat::eye( 3, 3, CV_64F);
-
-
-//        scaleMatrix.at<double>(0,0) = scaleFactor;
-//        scaleMatrix.at<double>(1,1) = scaleFactor;
-
         translateMatrix.at<double>(0,2) = (double)-minX;
         translateMatrix.at<double>(1,2) = (double)-minY;
+    }
 
-        Mat centerMatrix =/* scaleMatrix * */translateMatrix;
+    cerr << translateMatrix.at<double>(0,2) << " " << translateMatrix.at<double>(1,2) << endl;
 
+    homographys[0].copyTo(homography);
 
-        // Transformace obrazku 1
-        warpPerspective( img1, outputBuffer, centerMatrix, outputBuffer.size(), 1, BORDER_TRANSPARENT);
+    for(int i = 0; i < images.size(); i++){
 
-        // Transformace obrazku 2
-        warpPerspective( img2, outputBuffer, centerMatrix * homography.inv(), outputBuffer.size(), 1, BORDER_TRANSPARENT);
+        if(i > 1){
+            homography = homographys[i - 1] * homography;
 
+            std::cerr << "homografie " << std::endl;
+            for(int i = 0; i < 3 ; i++){
+                for(int j = 0; j < 3; j++){
+                    std::cerr << homography.at<float>(Point(i,j)) << " ";
+                }
+                cerr << endl;
+            }
+        }
+
+        if(i > 0)
+            warpPerspective( images[i], outputBuffer, translateMatrix * homography.inv(), outputBuffer.size(), 1, BORDER_TRANSPARENT);
+        else
+            warpPerspective( images[i], outputBuffer, translateMatrix, outputBuffer.size(), 1, BORDER_TRANSPARENT);
 
         vector<int> outputParams;
         outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
         imwrite("output.jpeg", outputBuffer,outputParams);
         imshow( "MERGED", outputBuffer);
-        outPut = outputBuffer;
     }
-    waitKey();
+        waitKey();
+
 /*
 
     // SURF detektor lokalnich oblasti

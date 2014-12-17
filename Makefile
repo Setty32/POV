@@ -6,8 +6,8 @@ TARGET2=main
 
 # Nastavte vstupnĂ­ parametry potĹebnĂŠ pro spuĹĄtÄnĂ­ aplikace, pokud chcete spouĹĄtÄt pomoci Makefile
 TARGET2_ARGUMENTS= IMG2.jpg IMG1.jpg
-TARGET2_ARGUMENTS1= 1.JPG 2.JPG 3.JPG 4.JPG 5.JPG 6.JPG
-TARGET2_ARGUMENTS2= 1_1.jpg 2_1.jpg 3_1.jpg #4_1.jpg 5_1.jpg 6_1.jpg 7_1.jpg
+TARGET2_ARGUMENTS1= 1.JPG 2.JPG 3.JPG #4.JPG 5.JPG 6.JPG
+TARGET2_ARGUMENTS2= 1_1.jpg 2_1.jpg 3_1.jpg 4_1.jpg #5_1.jpg 6_1.jpg 7_1.jpg
 # Parametry prekladace
 CC=g++ 
 CFLAGS=`pkg-config --cflags opencv` -std=gnu++0x
