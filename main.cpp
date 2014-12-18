@@ -17,7 +17,12 @@
 #include <cassert>
 #include <algorithm>
 
+#include <math.h>
+
 #include <vector>
+
+#define PI 3.14159265359
+
 using namespace std;
 using namespace cv;
 
@@ -26,11 +31,54 @@ bool compareDMatch( const DMatch& a, const DMatch &b){
     return a.distance < b.distance;
 }
 
+void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen, unsigned PicCount){
+//    outputPic = inputPic.clone();
+//    outputPic = Mat::zeros(outputPic.size(), outputPic.type());
+
+    double alpha = (2*PI) / (PicCount * inputPic.cols);
+
+    double cam = (PicCount*inputPic.cols)/(2*PI);
+    Point middle;
+    middle.x = (int)(inputPic.cols/2);
+    middle.y = (int)(inputPic.rows/2);
+
+    cerr << middle.x << " " <<middle.y << " " << alpha << endl;
+
+    for(int i = 0; i < inputPic.rows; i++){
+
+        double alphaY = (middle.y - i) * alpha;
+
+        for(int j = 0; j < inputPic.cols; j++){
+
+            double alphaX = (middle.x - j) * alpha;
+            double angle = sqrt(alphaX * alphaX + alphaY * alphaY);
+            //            cerr << alphaX << " " << alphaY << " i: " << i << " j: " << j << " " ;
+            cerr.flush();
+
+            double x,y;
+            if(angle != 0){
+                x = ((middle.x - j)*((CamDist * sin(angle) * cam)/(CamDist + cam*(1 - cos(angle)))))/(sin(angle) * cam);
+                y = ((middle.y - i)*((CamDist * sin(angle) * cam)/(CamDist + cam*(1 - cos(angle)))))/(sin(angle) * cam);
+            }
+            else{
+                x = 0;
+                y = 0;
+            }
+//            cerr <<  "x: " << x<< " " << y << " " << endl;
+            cerr.flush();
+
+            outputPic.at<Vec3b>((int)(middle.y - (int)y), (int)(middle. x - (int)x)) = inputPic.at<Vec3b>(i,j);
+        }
+        //        cerr << endl;
+    }
+}
+
 int main( int argc, char* argv[])
 {
     // jmena souboru pro zpracovani
     vector<string> imageNames;
     vector<Mat> images;
+    vector<Mat> sphereImages;
 
     // zpracovani parametru prikazove radky
     for( int i = 1; i < argc; i++){
@@ -42,71 +90,34 @@ int main( int argc, char* argv[])
         images.push_back(img);
     }
 
-    for(int i = 0; i < 1/*images.size()*/; i++){
+    for(int i = 0; i < images.size(); i++){
         if(images[i].data == NULL){
             cerr << "Error: failed to read imput image files!" << i << endl;
             return -1;
         }
 
-        Ptr<WarperCreator> warper_creator = new cv::CylindricalWarper();
+        Mat output = Mat::zeros(images[i].size(),images[i].type());
+        cerr << output.size() << endl;
+//        imshow("in", images[i]);
+        projectOnSphere(images[i],output, 9000/*4940*/, 100000, images.size());
 
-        Ptr<detail::RotationWarper> m = warper_creator->create(1);
-        Mat CamIntrinsicParams  = Mat::zeros(3,3,CV_32F);
-//        CamIntrinsicParams = Mat::zeros(3,3,CV_32F);
-//        CamIntrinsicParams.diag(1);
-        float radius = 2228;
-        CamIntrinsicParams.at<float>(Point(0,0)) = 400;
-        CamIntrinsicParams.at<float>(Point(0,1)) = 0;
-        CamIntrinsicParams.at<float>(Point(0,2)) = (images[i].cols)/2;
-        CamIntrinsicParams.at<float>(Point(1,0)) = 0;
-        CamIntrinsicParams.at<float>(Point(1,1)) = 400;
-        CamIntrinsicParams.at<float>(Point(1,2)) = images[i].rows/2;
-        CamIntrinsicParams.at<float>(Point(2,0)) = 0;
-        CamIntrinsicParams.at<float>(Point(2,1)) = 0;
-        CamIntrinsicParams.at<float>(Point(2,2)) = 1;
+        sphereImages.push_back(output);
 
-        Mat rotMat = Mat::zeros(3,3,CV_32F);
-        rotMat.at<float>(Point(0,0)) = 1;
-        rotMat.at<float>(Point(1,1)) = 1;
-        rotMat.at<float>(Point(2,2)) = 1;
-
-        for(int j = 0; j < 3 ; j++){
-            for(int k = 0; k < 3; k++){
-//                std::cerr << j << " " << k << " ";
-                std::cerr << CamIntrinsicParams.at<float>(Point(j,k)) << " ";
-            }
-            std::cerr << std::endl;
-        }
-
-        std::cerr << std::endl;
-
-        for(int j = 0; j < 3 ; j++){
-            for(int k = 0; k < 3; k++){
-//                std::cerr << j << " " << k << " ";
-                std::cerr << rotMat.at<float>(Point(j,k)) << " ";
-            }
-            std::cerr << std::endl;
-        }
-
-//        m = m.create(5);
-        Mat output = Mat::zeros(images[i].rows, images[i].cols, CV_32F);
-//        m->warp(images[i],CamIntrinsicParams,rotMat,INTER_LINEAR, BORDER_REFLECT, output);
-//        imshow("vystup:", output);
-
-//        vector<int> outputParams;
-//        outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
-//        imwrite("output.jpeg", output,outputParams);
-
+        vector<int> outputParams;
+        outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
+//        imshow("out", output);
+        string m= to_string(i);
+        imshow(m.c_str(),output);
     }
 
-    Mat outPut;
+//    Mat outPut;
 
     vector<Mat> homographys;
 
-    for(int i = 0; i < images.size() - 1; i++){
+    for(int i = 0; i < sphereImages.size() - 1; i++){
         SurfFeatureDetector detector;
-        Mat img1 = images[i];
-        Mat img2 = images[i + 1];
+        Mat img1 = sphereImages[i];
+        Mat img2 = sphereImages[i + 1];
 
         vector< KeyPoint> keyPoints1, keyPoints2;
         detector.detect( img1, keyPoints1);
@@ -140,7 +151,7 @@ int main( int argc, char* argv[])
         // serazeni korespondenci od nejlepsi (ma nejmensi vzajemnou vzdalenost v prostoru descriptoru)
         sort( matches.begin(), matches.end(), compareDMatch);
         // pouzijeme jen 200 nejlepsich korespondenci
-        matches.resize( min( 100, (int) matches.size()));
+        matches.resize( min( 500, (int) matches.size()));
 
         // pripraveni korespondujicich dvojic
         Mat img1Pos( matches.size(), 1, CV_32FC2);
@@ -156,24 +167,23 @@ int main( int argc, char* argv[])
 
         // Doplnte vypocet 3x3 matice homografie s vyuzitim algoritmu RANSAC. Pouzijte jdenu funkci knihovny OpenCV.
         homographys.push_back(findHomography(img1Pos, img2Pos, CV_RANSAC));
-
     }
 
     float minX = 0;
     float minY = 0;
-    float maxX = (float) images[0].cols;
-    float maxY = (float) images[0].rows;
+    float maxX = (float) sphereImages[0].cols;
+    float maxY = (float) sphereImages[0].rows;
 
     Mat homography;
     homographys[0].copyTo(homography);
 
-    for(int i = 0; i < images.size(); i++){
+    for(int i = 0; i < sphereImages.size(); i++){
         // rohy obrazku 2
         vector< Vec3d> corners;
         corners.push_back( Vec3d( 0, 0, 1));
-        corners.push_back( Vec3d( images[i].cols, 0, 1));
-        corners.push_back( Vec3d( images[i].cols, images[i].rows, 1));
-        corners.push_back( Vec3d( 0, images[i].rows, 1));
+        corners.push_back( Vec3d( sphereImages[i].cols, 0, 1));
+        corners.push_back( Vec3d( sphereImages[i].cols, sphereImages[i].rows, 1));
+        corners.push_back( Vec3d( 0, sphereImages[i].rows, 1));
 
         if(i > 1){
             homography = homographys[i - 1] * homography;
@@ -197,7 +207,11 @@ int main( int argc, char* argv[])
     std::cerr << "maxX " << maxX << std::endl;
     std::cerr << "maxY " << maxY << std::endl;
 
+    vector<Mat> outputs;
+    for(int i = 0; i < sphereImages.size();i++){
     Mat outputBuffer = Mat::zeros( maxY - minY, maxX - minX, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
+    outputs.push_back(outputBuffer);
+    }
     Mat translateMatrix = Mat::eye( 3, 3, CV_64F);
 
     homographys[0].copyTo(homography);
@@ -205,16 +219,16 @@ int main( int argc, char* argv[])
 
     minX = 0;
     minY = 0;
-    maxX = (float) images[0].cols;
-    maxY = (float) images[0].rows;
+    maxX = (float) sphereImages[0].cols;
+    maxY = (float) sphereImages[0].rows;
 
-    for(int i = 0; i < images.size(); i++){
+    for(int i = 0; i < sphereImages.size(); i++){
         // rohy obrazku 2
         vector< Vec3d> corners;
         corners.push_back( Vec3d( 0, 0, 1));
-        corners.push_back( Vec3d( images[i].cols, 0, 1));
-        corners.push_back( Vec3d( images[i].cols, images[i].rows, 1));
-        corners.push_back( Vec3d( 0, images[i].rows, 1));
+        corners.push_back( Vec3d( sphereImages[i].cols, 0, 1));
+        corners.push_back( Vec3d( sphereImages[i].cols, sphereImages[i].rows, 1));
+        corners.push_back( Vec3d( 0, sphereImages[i].rows, 1));
 
         if(i > 1){
             homography = homographys[i - 1] * homography;
@@ -245,7 +259,7 @@ int main( int argc, char* argv[])
 
     homographys[0].copyTo(homography);
 
-    for(int i = 0; i < images.size(); i++){
+    for(int i = 0; i < sphereImages.size(); i++){
 
         if(i > 1){
             homography = homographys[i - 1] * homography;
@@ -260,15 +274,29 @@ int main( int argc, char* argv[])
         }
 
         if(i > 0)
-            warpPerspective( images[i], outputBuffer, translateMatrix * homography.inv(), outputBuffer.size(), 1, BORDER_TRANSPARENT);
+            warpPerspective( sphereImages[i], outputs[i], translateMatrix * homography.inv(), outputs[i].size(), 1, BORDER_TRANSPARENT);
         else
-            warpPerspective( images[i], outputBuffer, translateMatrix, outputBuffer.size(), 1, BORDER_TRANSPARENT);
+            warpPerspective( sphereImages[i], outputs[i], translateMatrix, outputs[i].size(), 1, BORDER_TRANSPARENT);
+
+    }
+        Mat final = outputs[0];
+
+        std::cerr << outputs.size() << std::endl;
+        for(int i = 1; i < outputs.size(); i++){
+            for(int j = 0; j < outputs[i].rows;j++){
+                for(int k = 0; k < outputs[i].cols; k++){
+                    if((outputs[i].at<Vec3b>(j,k)[0] || outputs[i].at<Vec3b>(j,k)[1]|| outputs[i].at<Vec3b>(j,k)[2]) &&
+                       (!final.at<Vec3b>(j,k)[0] && !final.at<Vec3b>(j,k)[1] && !final.at<Vec3b>(j,k)[2]) ){
+                        final.at<Vec3b>(j,k) = outputs[i].at<Vec3b>(j,k);
+                    }
+                }
+            }
+        }
 
         vector<int> outputParams;
         outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
-        imwrite("output.jpeg", outputBuffer,outputParams);
-        imshow( "MERGED", outputBuffer);
-    }
+        imwrite("output.jpeg", final,outputParams);
+        imshow( "MERGED", final);
         waitKey();
 
 /*
@@ -401,3 +429,47 @@ int main( int argc, char* argv[])
     imshow( "MERGED", outputBuffer);
     waitKey();*/
 }
+
+
+
+//Ptr<WarperCreator> warper_creator = new cv::CylindricalWarper();
+
+//Ptr<detail::RotationWarper> m = warper_creator->create(1);
+//Mat CamIntrinsicParams  = Mat::zeros(3,3,CV_32F);
+////        CamIntrinsicParams = Mat::zeros(3,3,CV_32F);
+////        CamIntrinsicParams.diag(1);
+//float radius = 2228;
+//CamIntrinsicParams.at<float>(Point(0,0)) = 400 * 70;
+//CamIntrinsicParams.at<float>(Point(0,1)) = 0;
+//CamIntrinsicParams.at<float>(Point(0,2)) = (images[i].cols)/2;
+//CamIntrinsicParams.at<float>(Point(1,0)) = 0;
+//CamIntrinsicParams.at<float>(Point(1,1)) = 400 * 70;
+//CamIntrinsicParams.at<float>(Point(1,2)) = images[i].rows/2;
+//CamIntrinsicParams.at<float>(Point(2,0)) = 0;
+//CamIntrinsicParams.at<float>(Point(2,1)) = 0;
+//CamIntrinsicParams.at<float>(Point(2,2)) = 1;
+
+//Mat rotMat = Mat::eye(3,3,CV_32F);
+
+//for(int j = 0; j < 3 ; j++){
+//    for(int k = 0; k < 3; k++){
+////                std::cerr << j << " " << k << " ";
+//        std::cerr << CamIntrinsicParams.at<float>(Point(j,k)) << " ";
+//    }
+//    std::cerr << std::endl;
+//}
+
+//std::cerr << std::endl;
+
+//for(int j = 0; j < 3 ; j++){
+//    for(int k = 0; k < 3; k++){
+////                std::cerr << j << " " << k << " ";
+//        std::cerr << rotMat.at<float>(Point(j,k)) << " ";
+//    }
+//    std::cerr << std::endl;
+//}
+
+////        m = m.create(5);
+//Mat output = Mat::zeros(images[i].rows, images[i].cols, CV_32F);
+//m->warp(images[i],CamIntrinsicParams,rotMat,INTER_LINEAR, BORDER_REFLECT, output);
+//imshow("vystup:", output);
