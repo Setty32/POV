@@ -135,7 +135,6 @@ int main( int argc, char* argv[])
         use = equalizeIntensity(images[i]);
 
         Mat output = Mat::zeros(images[i].size(),images[i].type());
-//        cerr << output.size() << endl;
 //        imshow("in", images[i]);
         projectOnSphere(use,output, 8700/*4940*/, 100000, images.size());
 
