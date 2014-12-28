@@ -81,8 +81,8 @@ void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen,
 }
 
 /***************/
+//Prevzato z http://prateekvjoshi.com/2013/11/22/histogram-equalization-of-rgb-images/
 // Uprava rozsahu histogramu
-//http://prateekvjoshi.com/2013/11/22/histogram-equalization-of-rgb-images/
 Mat equalizeIntensity(const Mat& inputImage)
 {
     if(inputImage.channels() >= 3)
@@ -150,6 +150,9 @@ int main( int argc, char* argv[])
     vector<Mat> homographys;
 
     for(int i = 0; i < sphereImages.size() - 1; i++){
+
+        /*************************************/
+        //Prevzano z DU: hw04-RANSAC-zadani
         SurfFeatureDetector detector;
         Mat img1 = sphereImages[i];
         Mat img2 = sphereImages[i + 1];
@@ -202,6 +205,8 @@ int main( int argc, char* argv[])
 
         // Doplnte vypocet 3x3 matice homografie s vyuzitim algoritmu RANSAC. Pouzijte jdenu funkci knihovny OpenCV.
         homographys.push_back(findHomography(img1Pos, img2Pos, CV_RANSAC));
+
+        /******************************/
     }
 
     float minX = 0;
