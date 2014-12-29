@@ -80,32 +80,6 @@ void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen,
     }
 }
 
-/***************/
-//Prevzato z http://prateekvjoshi.com/2013/11/22/histogram-equalization-of-rgb-images/
-// Uprava rozsahu histogramu
-Mat equalizeIntensity(const Mat& inputImage)
-{
-    if(inputImage.channels() >= 3)
-    {
-        Mat ycrcb;
-        cvtColor(inputImage,ycrcb,CV_BGR2YCrCb);
-
-        vector<Mat> channels;
-        split(ycrcb,channels);
-
-        equalizeHist(channels[0], channels[0]);
-
-        Mat result;
-        merge(channels,ycrcb);
-        cvtColor(ycrcb,result,CV_YCrCb2BGR);
-
-        return result;
-    }
-
-    return Mat();
-}
-/****************/
-
 
 int main( int argc, char* argv[])
 {
@@ -130,13 +104,9 @@ int main( int argc, char* argv[])
             return -1;
         }
 
-        Mat use = Mat::zeros(images[i].size(),images[i].type());
-
-        use = equalizeIntensity(images[i]);
-
         Mat output = Mat::zeros(images[i].size(),images[i].type());
 //        imshow("in", images[i]);
-        projectOnSphere(use,output, 8700/*4940*/, 100000, images.size());
+        projectOnSphere(images[i],output, 8700/*4940*/, 100000, images.size());
 
 //        output = images[i];
 
