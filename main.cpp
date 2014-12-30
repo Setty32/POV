@@ -2,6 +2,7 @@
  * File: main.cpp
  * Project: Panorama / POV
  * Author: Vojtech Kaisler, xkaisl00@stud.fit.vutbr.cz
+ * Author: Ondrej Janosik, xjanos12@stud.fit.vutbr.cz
  * Description: First attempt to create program which compose photos to panorama.
  * Used technology: SURF, RANSAC, homography, openCV, image wrapping
  *
@@ -265,8 +266,8 @@ int main(int argc, char* argv[]) {
 
         // serazeni korespondenci od nejlepsi (ma nejmensi vzajemnou vzdalenost v prostoru descriptoru)
         sort(matches.begin(), matches.end(), compareDMatch);
-        // pouzijeme jen 200 nejlepsich korespondenci
-        matches.resize(min(300, (int) matches.size()));
+        // pouzijeme jen 50 nejlepsich korespondenci
+        matches.resize(min(50, (int) matches.size()));
 
         // pripraveni korespondujicich dvojic
         Mat img1Pos(matches.size(), 1, CV_32FC2);
