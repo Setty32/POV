@@ -33,7 +33,8 @@ using namespace std;
 using namespace cv;
 
 // porovnani pro serazeni korespondenci od nejlepsi
-bool compareDMatch( const DMatch& a, const DMatch &b){
+
+bool compareDMatch(const DMatch& a, const DMatch &b) {
     return a.distance < b.distance;
 }
 
@@ -42,84 +43,82 @@ bool compareDMatch( const DMatch& a, const DMatch &b){
  *
  * Pozn. alternativu HomographyBasedEstimator se mi nepodarilo zprovoznit
  */
-void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen, unsigned PicCount){
+void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen, unsigned PicCount) {
 
-    double alpha = (2*PI) / (PicCount * inputPic.cols);
+    double alpha = (2 * PI) / (PicCount * inputPic.cols);
 
-    double cam = (PicCount*inputPic.cols)/(2*PI);
+    double cam = (PicCount * inputPic.cols) / (2 * PI);
     Point middle;
-    middle.x = (int)(inputPic.cols/2);
-    middle.y = (int)(inputPic.rows/2);
+    middle.x = (int) (inputPic.cols / 2);
+    middle.y = (int) (inputPic.rows / 2);
 
-//    cerr << middle.x << " " <<middle.y << " " << alpha << endl;
+    //    cerr << middle.x << " " <<middle.y << " " << alpha << endl;
 
-    for(int i = 0; i < inputPic.rows; i++){
+    for (int i = 0; i < inputPic.rows; i++) {
 
         double alphaY = (middle.y - i) * alpha;
 
-        for(int j = 0; j < inputPic.cols; j++){
+        for (int j = 0; j < inputPic.cols; j++) {
 
             double alphaX = (middle.x - j) * alpha;
             double angle = sqrt(alphaX * alphaX + alphaY * alphaY);
             //            cerr << alphaX << " " << alphaY << " i: " << i << " j: " << j << " " ;
             cerr.flush();
 
-            double x,y;
-            if(angle != 0){
-                x = ((middle.x - j)*((CamDist * sin(angle) * cam)/(CamDist + cam*(1 - cos(angle)))))/(sin(angle) * cam);
-                y = ((middle.y - i)*((CamDist * sin(angle) * cam)/(CamDist + cam*(1 - cos(angle)))))/(sin(angle) * cam);
-            }
-            else{
+            double x, y;
+            if (angle != 0) {
+                x = ((middle.x - j)*((CamDist * sin(angle) * cam) / (CamDist + cam * (1 - cos(angle))))) / (sin(angle) * cam);
+                y = ((middle.y - i)*((CamDist * sin(angle) * cam) / (CamDist + cam * (1 - cos(angle))))) / (sin(angle) * cam);
+            } else {
                 x = 0;
                 y = 0;
             }
             cerr.flush();
 
-            outputPic.at<Vec3b>((int)(middle.y - (int)y), (int)(middle. x - (int)x)) = inputPic.at<Vec3b>(i,j);
+            outputPic.at<Vec3b>((int) (middle.y - (int) y), (int) (middle. x - (int) x)) = inputPic.at<Vec3b>(i, j);
         }
     }
 }
 
-
-int main( int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     // jmena souboru pro zpracovani
     vector<string> imageNames;
     vector<Mat> images;
     vector<Mat> sphereImages;
+    string outputName(argv[argc - 1]);
 
     // zpracovani parametru prikazove radky
-    for( int i = 1; i < argc; i++){
+    for (int i = 1; i < argc - 1; i++) {
         imageNames.push_back(argv[i]);
     }
 
-    for(int i = 0; i < imageNames.size(); i++){
+    for (int i = 0; i < imageNames.size(); i++) {
         Mat img = imread(imageNames[i]);
         images.push_back(img);
     }
 
-    for(int i = 0; i < images.size(); i++){
-        if(images[i].data == NULL){
+    for (int i = 0; i < images.size(); i++) {
+        if (images[i].data == NULL) {
             cerr << "Error: failed to read imput image files!" << i << endl;
             return -1;
         }
 
-        Mat output = Mat::zeros(images[i].size(),images[i].type());
-//        imshow("in", images[i]);
-        projectOnSphere(images[i],output, 8700/*4940*/, 100000, images.size());
+        Mat output = Mat::zeros(images[i].size(), images[i].type());
+        //        imshow("in", images[i]);
+        projectOnSphere(images[i], output, 8700/*4940*/, 100000, images.size());
 
-//        output = images[i];
+        //        output = images[i];
 
         sphereImages.push_back(output);
 
         vector<int> outputParams;
         outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
-//        imshow("out", output);
+        //        imshow("out", output);
     }
 
     vector<Mat> homographys;
 
-    for(int i = 0; i < sphereImages.size() - 1; i++){
+    for (int i = 0; i < sphereImages.size() - 1; i++) {
 
         /*************************************/
         //Prevzano z DU: hw04-RANSAC-zadani
@@ -128,8 +127,8 @@ int main( int argc, char* argv[])
         Mat img2 = sphereImages[i + 1];
 
         vector< KeyPoint> keyPoints1, keyPoints2;
-        detector.detect( img1, keyPoints1);
-        detector.detect( img2, keyPoints2);
+        detector.detect(img1, keyPoints1);
+        detector.detect(img2, keyPoints2);
 
 
         // extraktor SURF descriptoru
@@ -137,17 +136,17 @@ int main( int argc, char* argv[])
 
         // samonty vypocet SURF descriptoru
         Mat descriptors1, descriptors2;
-        descriptorExtractor.compute( img1, keyPoints1, descriptors1);
-        descriptorExtractor.compute( img2, keyPoints2, descriptors2);
+        descriptorExtractor.compute(img1, keyPoints1, descriptors1);
+        descriptorExtractor.compute(img2, keyPoints2, descriptors2);
 
         // tento vektor je pouze pro ucely funkce hledajici korespondence
         vector< Mat> descriptorVector2;
-        descriptorVector2.push_back( descriptors2);
+        descriptorVector2.push_back(descriptors2);
 
         // objekt, ktery dokaze snad pomerne efektivne vyhledavat podebne vektory v prostorech s vysokym poctem dimenzi
         FlannBasedMatcher matcher;
         // Pridani deskriptoru, mezi kterymi budeme pozdeji hledat nejblizsi sousedy
-        matcher.add( descriptorVector2);
+        matcher.add(descriptorVector2);
         // Vytvoreni vyhledavaci struktury nad vlozenymi descriptory
         matcher.train();
 
@@ -157,20 +156,20 @@ int main( int argc, char* argv[])
         matcher.match(descriptors1, matches);
 
         // serazeni korespondenci od nejlepsi (ma nejmensi vzajemnou vzdalenost v prostoru descriptoru)
-        sort( matches.begin(), matches.end(), compareDMatch);
+        sort(matches.begin(), matches.end(), compareDMatch);
         // pouzijeme jen 200 nejlepsich korespondenci
-        matches.resize( min( 300, (int) matches.size()));
+        matches.resize(min(300, (int) matches.size()));
 
         // pripraveni korespondujicich dvojic
-        Mat img1Pos( matches.size(), 1, CV_32FC2);
-        Mat img2Pos( matches.size(), 1, CV_32FC2);
+        Mat img1Pos(matches.size(), 1, CV_32FC2);
+        Mat img2Pos(matches.size(), 1, CV_32FC2);
 
         // naplneni matic pozicemi korespondujicich oblasti
-        for( int j = 0; j < (int)matches.size(); j++){
-            img1Pos.at< Vec2f>( j)[0] = keyPoints1[ matches[ j].queryIdx].pt.x;
-            img1Pos.at< Vec2f>( j)[1] = keyPoints1[ matches[ j].queryIdx].pt.y;
-            img2Pos.at< Vec2f>( j)[0] = keyPoints2[ matches[ j].trainIdx].pt.x;
-            img2Pos.at< Vec2f>( j)[1] = keyPoints2[ matches[ j].trainIdx].pt.y;
+        for (int j = 0; j < (int) matches.size(); j++) {
+            img1Pos.at< Vec2f>(j)[0] = keyPoints1[ matches[ j].queryIdx].pt.x;
+            img1Pos.at< Vec2f>(j)[1] = keyPoints1[ matches[ j].queryIdx].pt.y;
+            img2Pos.at< Vec2f>(j)[0] = keyPoints2[ matches[ j].trainIdx].pt.x;
+            img2Pos.at< Vec2f>(j)[1] = keyPoints2[ matches[ j].trainIdx].pt.y;
         }
 
         // Doplnte vypocet 3x3 matice homografie s vyuzitim algoritmu RANSAC. Pouzijte jdenu funkci knihovny OpenCV.
@@ -187,40 +186,40 @@ int main( int argc, char* argv[])
     Mat homography;
     homographys[0].copyTo(homography);
 
-    for(int i = 0; i < sphereImages.size(); i++){
+    for (int i = 0; i < sphereImages.size(); i++) {
         // rohy obrazku 2
         vector< Vec3d> corners;
-        corners.push_back( Vec3d( 0, 0, 1));
-        corners.push_back( Vec3d( sphereImages[i].cols, 0, 1));
-        corners.push_back( Vec3d( sphereImages[i].cols, sphereImages[i].rows, 1));
-        corners.push_back( Vec3d( 0, sphereImages[i].rows, 1));
+        corners.push_back(Vec3d(0, 0, 1));
+        corners.push_back(Vec3d(sphereImages[i].cols, 0, 1));
+        corners.push_back(Vec3d(sphereImages[i].cols, sphereImages[i].rows, 1));
+        corners.push_back(Vec3d(0, sphereImages[i].rows, 1));
 
-        if(i > 1){
+        if (i > 1) {
             homography = homographys[i - 1] * homography;
 
-            for( int j = 0; j < (int)corners.size(); j++){
-                Mat projResult = homography.inv() * Mat( corners[j]);
+            for (int j = 0; j < (int) corners.size(); j++) {
+                Mat projResult = homography.inv() * Mat(corners[j]);
 
-                minX = std::min( minX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
-                maxX = std::max( maxX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
-                minY = std::min( minY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
-                maxY = std::max( maxY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
+                minX = std::min(minX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
+                maxX = std::max(maxX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
+                minY = std::min(minY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
+                maxY = std::max(maxY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
             }
 
         }
     }
 
-//    std::cerr << "minX " << minX << std::endl;
-//    std::cerr << "minY " << minY << std::endl;
-//    std::cerr << "maxX " << maxX << std::endl;
-//    std::cerr << "maxY " << maxY << std::endl;
+    //    std::cerr << "minX " << minX << std::endl;
+    //    std::cerr << "minY " << minY << std::endl;
+    //    std::cerr << "maxX " << maxX << std::endl;
+    //    std::cerr << "maxY " << maxY << std::endl;
 
     vector<Mat> outputs;
-    for(int i = 0; i < sphereImages.size();i++){
-    Mat outputBuffer = Mat::zeros( maxY - minY, maxX - minX, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
-    outputs.push_back(outputBuffer);
+    for (int i = 0; i < sphereImages.size(); i++) {
+        Mat outputBuffer = Mat::zeros(maxY - minY, maxX - minX, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
+        outputs.push_back(outputBuffer);
     }
-    Mat translateMatrix = Mat::eye( 3, 3, CV_64F);
+    Mat translateMatrix = Mat::eye(3, 3, CV_64F);
 
     homographys[0].copyTo(homography);
 
@@ -230,66 +229,66 @@ int main( int argc, char* argv[])
     maxX = (float) sphereImages[0].cols;
     maxY = (float) sphereImages[0].rows;
 
-    for(int i = 0; i < sphereImages.size(); i++){
+    for (int i = 0; i < sphereImages.size(); i++) {
         // rohy obrazku 2
         vector< Vec3d> corners;
-        corners.push_back( Vec3d( 0, 0, 1));
-        corners.push_back( Vec3d( sphereImages[i].cols, 0, 1));
-        corners.push_back( Vec3d( sphereImages[i].cols, sphereImages[i].rows, 1));
-        corners.push_back( Vec3d( 0, sphereImages[i].rows, 1));
+        corners.push_back(Vec3d(0, 0, 1));
+        corners.push_back(Vec3d(sphereImages[i].cols, 0, 1));
+        corners.push_back(Vec3d(sphereImages[i].cols, sphereImages[i].rows, 1));
+        corners.push_back(Vec3d(0, sphereImages[i].rows, 1));
 
-        if(i > 1){
+        if (i > 1) {
             homography = homographys[i - 1] * homography;
         }
 
-        for( int j = 0; j < (int)corners.size(); j++){
-            Mat projResult = homography.inv() * Mat( corners[j]);
+        for (int j = 0; j < (int) corners.size(); j++) {
+            Mat projResult = homography.inv() * Mat(corners[j]);
 
-            minX = std::min( minX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
-            maxX = std::max( maxX, (float) (projResult.at<double>( 0) / projResult.at<double>( 2)));
-            minY = std::min( minY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
-            maxY = std::max( maxY, (float) (projResult.at<double>( 1) / projResult.at<double>( 2)));
+            minX = std::min(minX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
+            maxX = std::max(maxX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
+            minY = std::min(minY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
+            maxY = std::max(maxY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
         }
 
-        translateMatrix.at<double>(0,2) = (double)-minX;
-        translateMatrix.at<double>(1,2) = (double)-minY;
+        translateMatrix.at<double>(0, 2) = (double) -minX;
+        translateMatrix.at<double>(1, 2) = (double) -minY;
     }
 
 
     homographys[0].copyTo(homography);
 
-    for(int i = 0; i < sphereImages.size(); i++){
+    for (int i = 0; i < sphereImages.size(); i++) {
 
-        if(i > 1){
+        if (i > 1) {
             homography = homographys[i - 1] * homography;
         }
 
-        if(i > 0)
-            warpPerspective( sphereImages[i], outputs[i], translateMatrix * homography.inv(), outputs[i].size(), 1, BORDER_TRANSPARENT);
+        if (i > 0)
+            warpPerspective(sphereImages[i], outputs[i], translateMatrix * homography.inv(), outputs[i].size(), 1, BORDER_TRANSPARENT);
         else
-            warpPerspective( sphereImages[i], outputs[i], translateMatrix, outputs[i].size(), 1, BORDER_TRANSPARENT);
+            warpPerspective(sphereImages[i], outputs[i], translateMatrix, outputs[i].size(), 1, BORDER_TRANSPARENT);
 
     }
-        Mat final = outputs[outputs.size() -1 ];
+    Mat finalImg = outputs[outputs.size() - 1 ];
 
-        for(int i = outputs.size() - 1; i >= 0; i--){
-            for(int j = 0; j < outputs[i].rows;j++){
-                for(int k = 0; k < outputs[i].cols; k++){
-                    if((outputs[i].at<Vec3b>(j,k)[0] || outputs[i].at<Vec3b>(j,k)[1]  || outputs[i].at<Vec3b>(j,k)[2])/* &&
-                       (!final.at<Vec3b>(j,k)[0] && !final.at<Vec3b>(j,k)[1] && !final.at<Vec3b>(j,k)[2]) */){
-                        final.at<Vec3b>(j,k) = outputs[i].at<Vec3b>(j,k);
-                    }
+    for (int i = outputs.size() - 1; i >= 0; i--) {
+        for (int j = 0; j < outputs[i].rows; j++) {
+            for (int k = 0; k < outputs[i].cols; k++) {
+                if ((outputs[i].at<Vec3b>(j, k)[0] || outputs[i].at<Vec3b>(j, k)[1] || outputs[i].at<Vec3b>(j, k)[2])/* &&
+                       (!finalImg.at<Vec3b>(j,k)[0] && !finalImg.at<Vec3b>(j,k)[1] && !finalImg.at<Vec3b>(j,k)[2]) */) {
+                    finalImg.at<Vec3b>(j, k) = outputs[i].at<Vec3b>(j, k);
                 }
             }
-
-            string m= to_string(i);
-            cerr << i << endl;
-//            imshow(m.c_str(),outputs[i]);
         }
 
-        vector<int> outputParams;
-        outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
-        imwrite("output.jpeg", final,outputParams);
-        imshow( "MERGED", final);
-        waitKey();
+        string m = to_string(i);
+        cerr << i << endl;
+        //            imshow(m.c_str(),outputs[i]);
+    }
+
+    vector<int> outputParams;
+    outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
+    imwrite(outputName, finalImg, outputParams);
+    imshow("MERGED", finalImg);
+    waitKey();
 }
