@@ -75,6 +75,9 @@ prvnímu. Pokud aplikujeme zpětnou transformaci na druhý obraz, pak bude tento
 obraz v ideálním případě pěkně navazovat na první obraz.
 Tento postup je možné aplikovat pro více obrázků a vytvořit tak výsledné panorama.
 
+V rámci zajištění slušného spojení jednotlivých snímků je třeba provést promítnutí jednotlivých snímku na kouli. Tím dojde k odstranění některých vad kamery a násleně i kvalitnější spojení spojení snímků.
+
+
 \subsection{Hledání význačných bodů}
 
 K nalezení význačných bodů v obraze slouží například metody SIFT a SURF. 
@@ -106,6 +109,28 @@ V našem případě vybere tato metoda vektory, které v množině dat převažu
 Tyto vektory pak odpovídají hledáným dvojicím bodů a je možné z nich vypočítat
 potřebnou transformaci.
 
+\subsection{Promítnutí snímku na kouli}
+
+Při této tranformaci se na body surového snímku musíme dívat jako na body, které
+leží na povrchu koule o vhodném poloměru. Cílem tranformace je poté vytvoření
+projekce všech bodů snímků z koule na rovinu přirozeným způsobem.
+
+Na vzdálenost jednotlivých bodů surového snímku se můžeme dívat jako na úhlovou
+vzdálenost na povrchu koule. Obvod koule a z toho plynoucí poloměr koule je určen
+předpokládaným součtem pixelů v jedné ose (kupříkladu 3 snímky o rozměrech
+$1900{\times}1600$
+budou mít předpokládaný průměr 80\% z $4{\times}1900$). Tím je určen úhel, který zabírá
+jeden pixel (platí analogicky pro oba rozměry).
+
+Následně se pro všechny body
+snímku provede přepočet jejich polohy vůči novému zobrazení. Deformace nového
+snímku vůči snímku původnímu bude patrnější v okrajových částech snímku.
+Posledním důležitým údajem je vzdálenost kamery od povrchu koule.
+
+Nepodařilo se
+nám určit vhodnou metodu zjištění tohoto údaje, proto je v této práci nastaven
+s ohledem na demonstrační data.
+
 \subsection{Spojení obrázků}
 
 Výsledné spojení je již relativně jednoduché. Stačí na obrázky aplikovat zpětné
@@ -124,9 +149,18 @@ Implementovali jsme projekci na kouli, která sama o sobě funguje, ale k lepš�
 výsledkům příliš nepřispívá. Dále jsme implementovali vyrovnání obrazu, aby 
 výsledek vypadal trochu rozumně.
 
+\begin{figure}[H!]
+    \center
+    \includegraphics{img/mountains} \\
+    \vspace{0.7cm}
+    \includegraphics{img/shanghai} \\
+    \caption{Výsledek spojení demonstračních dat.}
+\end{figure}
+
 \section{Závěr}
 
 Do slušného panoramatu by bylo třeba vynaložit ještě docela dost úsilí.
+Způsob použití programu se nachází v souboru \textit{README.md}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

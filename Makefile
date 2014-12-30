@@ -18,7 +18,7 @@ CC=g++
 CFLAGS=`pkg-config --cflags opencv` -std=gnu++0x -g
 LIBS=`pkg-config --libs opencv`
 
-.PHONY: $(TARGET_FILES) pack
+.PHONY: $(TARGET_FILES) pack demo
 
 # Kompilace obou detektoru
 all: $(TARGET)
@@ -29,6 +29,8 @@ $(TARGET): $(SRC)
 clean:
 	rm -f *.o *~ $(TARGET) $(TARGET_FILES)
 
+demo: $(TARGET_FILES)
+
 shanghai.jpg: $(TARGET)
 	./$(TARGET) $(SHANGHAI_FILES) $@
 
@@ -36,5 +38,6 @@ mountains.jpg: $(TARGET)
 	./$(TARGET) $(MOUNTAIN_FILES) $@
 	
 pack:
-	tar cvzf project.tar.gz $(SRC) $(SHANGHAI_FILES) $(MOUNTAIN_FILES) Makefile README.md $(DOC_FILES)
+	cd doc; make
+	zip project.zip $(SRC) $(SHANGHAI_FILES) $(MOUNTAIN_FILES) Makefile README.md $(DOC_FILES)
 
