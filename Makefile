@@ -8,10 +8,10 @@ TARGET2=main
 TARGET2_ARGUMENTS= IMG2.jpg IMG1.jpg chimney.jpg
 TARGET2_ARGUMENTS1= 1.JPG 2.JPG 3.JPG catedral.jpg #4.JPG 5.JPG 6.JPG
 TARGET2_ARGUMENTS2= 1_1.jpg 2_1.jpg 3_1.jpg 4_1.jpg mountains.jpg  #5_1.jpg #6_1.jpg 7_1.jpg
-TARGET2_SHNAG = shanghai01.jpg shanghai02.jpg shanghai03.jpg shanghai.jpg
+TARGET2_SHANG = shanghai01.jpg shanghai02.jpg shanghai03.jpg shanghai.jpg
 # Parametry prekladace
 CC=g++ 
-CFLAGS=`pkg-config --cflags opencv` -std=gnu++0x
+CFLAGS=`pkg-config --cflags opencv` -std=gnu++0x -g
 LIBS=`pkg-config --libs opencv`
 
 # Kompilace obou detektoru
@@ -34,4 +34,4 @@ run3: $(TARGET2)
 	./$(TARGET2) $(TARGET2_ARGUMENTS2)
 
 shang: $(TARGET2)
-	./$(TARGET2) $(TARGET2_SHNAG)
+	./$(TARGET2) $(TARGET2_SHANG)

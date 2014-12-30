@@ -7,6 +7,7 @@
  *
  */
 
+#define VISUAL_DEBUG 0
 
 #include <opencv2/core/core.hpp>
 #include "opencv2/imgproc/imgproc.hpp"
@@ -32,6 +33,51 @@
 using namespace std;
 using namespace cv;
 
+float maxDimensionsWithRatio(int &width, int &height, int maxSize) {
+    float scale = 1.0f;
+    if (width > maxSize || height > maxSize) {
+        if (width > height) {
+            scale = (float(width) / float(height));
+            width = maxSize;
+            height = maxSize * scale;
+        } else {
+            scale = float(height) / float(width);
+            width = maxSize * scale;
+            height = maxSize;
+        }
+    }
+    return scale;
+}
+
+void imshowScaled(const string& winname, InputArray mat, int maxSize = 1200) {
+
+    namedWindow(winname, CV_WINDOW_NORMAL | CV_WINDOW_KEEPRATIO | CV_GUI_EXPANDED);
+
+    imshow(winname, mat);
+
+    Mat m = mat.getMat();
+    int w, h;
+
+    w = m.cols;
+    h = m.rows;
+
+    maxDimensionsWithRatio(w, h, maxSize);
+
+    resizeWindow(winname, w, h);
+}
+
+void updateNearestCorner(const Point2f refCorner, const Point2f newCorner, Point2f &corner, float &distance) {
+    Vec2f diff;
+    float dist;
+    diff = refCorner - newCorner;
+    dist = diff.ddot(diff);
+
+    if (dist < distance) {
+        corner = newCorner;
+        distance = dist;
+    }
+}
+
 // porovnani pro serazeni korespondenci od nejlepsi
 
 bool compareDMatch(const DMatch& a, const DMatch &b) {
@@ -43,9 +89,11 @@ bool compareDMatch(const DMatch& a, const DMatch &b) {
  *
  * Pozn. alternativu HomographyBasedEstimator se mi nepodarilo zprovoznit
  */
-void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen, unsigned PicCount) {
+void projectOnSphere(Mat inputPic, Mat &outputPic, double CamDist, double FocLen, unsigned PicCount) {
+    Mat tmp = Mat(inputPic.size(), inputPic.type());
 
     double alpha = (2 * PI) / (PicCount * inputPic.cols);
+    double alphaX, alphaY, angle;
 
     double cam = (PicCount * inputPic.cols) / (2 * PI);
     Point middle;
@@ -56,12 +104,12 @@ void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen,
 
     for (int i = 0; i < inputPic.rows; i++) {
 
-        double alphaY = (middle.y - i) * alpha;
+        alphaY = (middle.y - i) * alpha;
 
         for (int j = 0; j < inputPic.cols; j++) {
 
-            double alphaX = (middle.x - j) * alpha;
-            double angle = sqrt(alphaX * alphaX + alphaY * alphaY);
+            alphaX = (middle.x - j) * alpha;
+            angle = sqrt(alphaX * alphaX + alphaY * alphaY);
             //            cerr << alphaX << " " << alphaY << " i: " << i << " j: " << j << " " ;
             cerr.flush();
 
@@ -73,11 +121,61 @@ void projectOnSphere(Mat inputPic, Mat outputPic, double CamDist, double FocLen,
                 x = 0;
                 y = 0;
             }
-            cerr.flush();
 
-            outputPic.at<Vec3b>((int) (middle.y - (int) y), (int) (middle. x - (int) x)) = inputPic.at<Vec3b>(i, j);
+            Vec3b inputPixel = inputPic.at<Vec3b>(i, j);
+            Vec3b outputPixel;
+            outputPixel[0] = inputPixel[0];
+            outputPixel[1] = inputPixel[1];
+            outputPixel[2] = inputPixel[2];
+            tmp.at<Vec3b>((int) (middle.y - (int) y), (int) (middle. x - (int) x)) = outputPixel;
         }
     }
+
+    Point2d topLeft(0, 0), bottomRight(inputPic.cols - 1, inputPic.rows - 1);
+
+    int i, j;
+
+    i = topLeft.y;
+    j = topLeft.x;
+
+    alphaY = (middle.y - i) * alpha;
+    alphaX = (middle.x - j) * alpha;
+    angle = sqrt(alphaX * alphaX + alphaY * alphaY);
+    if (angle != 0) {
+        topLeft.x = ((middle.x - j)*((CamDist * sin(angle) * cam) / (CamDist + cam * (1 - cos(angle))))) / (sin(angle) * cam);
+        topLeft.y = ((middle.y - i)*((CamDist * sin(angle) * cam) / (CamDist + cam * (1 - cos(angle))))) / (sin(angle) * cam);
+    } else {
+        topLeft.x = 0;
+        topLeft.y = 0;
+    }
+
+
+    i = bottomRight.y;
+    j = bottomRight.x;
+
+    alphaY = (middle.y - i) * alpha;
+    alphaX = (middle.x - j) * alpha;
+    angle = sqrt(alphaX * alphaX + alphaY * alphaY);
+    if (angle != 0) {
+        bottomRight.x = ((middle.x - j)*((CamDist * sin(angle) * cam) / (CamDist + cam * (1 - cos(angle))))) / (sin(angle) * cam);
+        bottomRight.y = ((middle.y - i)*((CamDist * sin(angle) * cam) / (CamDist + cam * (1 - cos(angle))))) / (sin(angle) * cam);
+    } else {
+        bottomRight.x = 0;
+        bottomRight.y = 0;
+    }
+
+    topLeft.x = middle.x - topLeft.x;
+    topLeft.y = middle.y - topLeft.y;
+
+    bottomRight.x = middle.x - bottomRight.x;
+    bottomRight.y = middle.y - bottomRight.y;
+
+    // Ořezání černých okrajů
+    Rect roi(topLeft, bottomRight);
+
+    Mat roiImage = tmp(roi);
+
+    roiImage.copyTo(outputPic);
 }
 
 int main(int argc, char* argv[]) {
@@ -103,20 +201,31 @@ int main(int argc, char* argv[]) {
             return -1;
         }
 
-        Mat output = Mat::zeros(images[i].size(), images[i].type());
-        //        imshow("in", images[i]);
+        Mat output;
+#if VISUAL_DEBUG
+        imshowScaled("in", images[i]);
+#endif
         projectOnSphere(images[i], output, 8700/*4940*/, 100000, images.size());
 
-        //        output = images[i];
+        images[i].release();
 
         sphereImages.push_back(output);
 
         vector<int> outputParams;
         outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
-        //        imshow("out", output);
+#if VISUAL_DEBUG
+        imshowScaled("out", output);
+        waitKey(0);
+        destroyAllWindows();
+#endif
     }
 
-    vector<Mat> homographys;
+    images.clear();
+
+    Mat homography;
+    vector<Mat> homographies;
+
+    homographies.push_back(Mat::eye(3, 3, CV_64F));
 
     for (int i = 0; i < sphereImages.size() - 1; i++) {
 
@@ -129,7 +238,6 @@ int main(int argc, char* argv[]) {
         vector< KeyPoint> keyPoints1, keyPoints2;
         detector.detect(img1, keyPoints1);
         detector.detect(img2, keyPoints2);
-
 
         // extraktor SURF descriptoru
         SurfDescriptorExtractor descriptorExtractor;
@@ -151,8 +259,8 @@ int main(int argc, char* argv[]) {
         matcher.train();
 
         vector<cv::DMatch > matches;
-        // Doplòte nalezeni korespondenci - nejpodobnejsich descriptoru z obrazku 2 (descriptorVector2)
-        // pro oblasti z obrazku 1 (descriptors1). Vysledek ulozte do matches.
+        // Nalezeni korespondenci - nejpodobnejsich descriptoru z obrazku 2 (descriptorVector2)
+        // pro oblasti z obrazku 1 (descriptors1).
         matcher.match(descriptors1, matches);
 
         // serazeni korespondenci od nejlepsi (ma nejmensi vzajemnou vzdalenost v prostoru descriptoru)
@@ -173,19 +281,19 @@ int main(int argc, char* argv[]) {
         }
 
         // Doplnte vypocet 3x3 matice homografie s vyuzitim algoritmu RANSAC. Pouzijte jdenu funkci knihovny OpenCV.
-        homographys.push_back(findHomography(img1Pos, img2Pos, CV_RANSAC));
+        homography = findHomography(img1Pos, img2Pos, CV_RANSAC);
+        homographies.push_back(homographies.back() * homography);
 
         /******************************/
     }
+
 
     float minX = 0;
     float minY = 0;
     float maxX = (float) sphereImages[0].cols;
     float maxY = (float) sphereImages[0].rows;
 
-    Mat homography;
-    homographys[0].copyTo(homography);
-
+    vector< Point2f> projectedCorners;
     for (int i = 0; i < sphereImages.size(); i++) {
         // rohy obrazku 2
         vector< Vec3d> corners;
@@ -194,18 +302,20 @@ int main(int argc, char* argv[]) {
         corners.push_back(Vec3d(sphereImages[i].cols, sphereImages[i].rows, 1));
         corners.push_back(Vec3d(0, sphereImages[i].rows, 1));
 
-        if (i > 1) {
-            homography = homographys[i - 1] * homography;
+        homography = homographies[i];
 
-            for (int j = 0; j < (int) corners.size(); j++) {
-                Mat projResult = homography.inv() * Mat(corners[j]);
+        for (int j = 0; j < (int) corners.size(); j++) {
+            Mat projResult = homography.inv() * Mat(corners[j]);
 
-                minX = std::min(minX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
-                maxX = std::max(maxX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
-                minY = std::min(minY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
-                maxY = std::max(maxY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
-            }
+            projectedCorners.push_back(
+                    Point2f(
+                    (float) (projResult.at<double>(0) / projResult.at<double>(2)),
+                    (float) (projResult.at<double>(1) / projResult.at<double>(2))));
 
+            minX = std::min(minX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
+            maxX = std::max(maxX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
+            minY = std::min(minY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
+            maxY = std::max(maxY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
         }
     }
 
@@ -214,81 +324,71 @@ int main(int argc, char* argv[]) {
     //    std::cerr << "maxX " << maxX << std::endl;
     //    std::cerr << "maxY " << maxY << std::endl;
 
-    vector<Mat> outputs;
-    for (int i = 0; i < sphereImages.size(); i++) {
-        Mat outputBuffer = Mat::zeros(maxY - minY, maxX - minX, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
-        outputs.push_back(outputBuffer);
+    Mat perspectiveMatrix = Mat::eye(3, 3, CV_64F);
+
+    // Nalezení krajních bodů
+    Point2f topLeft(minX, minY), topRight(maxX, minY), bottomLeft(minX, maxY), bottomRight(maxX, maxY);
+    Point2f topLeftNearest, topRightNearest, bottomLeftNearest, bottomRightNearest;
+    float topLeftDistance = 1e60, topRightDistance = 1e60, bottomLeftDistance = 1e60, bottomRightDistance = 1e60;
+    for (int i = 0; i < projectedCorners.size(); i++) {
+
+        Vec2f corner = projectedCorners[i];
+
+        updateNearestCorner(topLeft, corner, topLeftNearest, topLeftDistance);
+        updateNearestCorner(topRight, corner, topRightNearest, topRightDistance);
+        updateNearestCorner(bottomLeft, corner, bottomLeftNearest, bottomLeftDistance);
+        updateNearestCorner(bottomRight, corner, bottomRightNearest, bottomRightDistance);
     }
+
+    vector<Point2f> srcCorners;
+    vector<Point2f> destCorners;
+
+    srcCorners.push_back(Point2f(topLeftNearest));
+    srcCorners.push_back(Point2f(topRightNearest));
+    srcCorners.push_back(Point2f(bottomLeftNearest));
+    srcCorners.push_back(Point2f(bottomRightNearest));
+
+    int width = maxX - minX;
+    int height = maxY - minY;
+    float scale;
+
+    // Omezené velikosti výsledného obrazu
+    scale = maxDimensionsWithRatio(width, height, 1 << 14);
+
+    minX *= scale;
+    maxX *= scale;
+    minY *= scale;
+    maxY *= scale;
+
+    destCorners.push_back(Point2f(0, 0));
+    destCorners.push_back(Point2f(width, 0));
+    destCorners.push_back(Point2f(0, height));
+    destCorners.push_back(Point2f(width, height));
+
+    // Vyrovnání obrazu
+    perspectiveMatrix = getPerspectiveTransform(srcCorners, destCorners);
+
     Mat translateMatrix = Mat::eye(3, 3, CV_64F);
+    translateMatrix.at<double>(0, 2) = (double) -minX;
+    translateMatrix.at<double>(1, 2) = (double) -minY;
 
-    homographys[0].copyTo(homography);
+    Mat transformationMatrix = perspectiveMatrix;
 
-
-    minX = 0;
-    minY = 0;
-    maxX = (float) sphereImages[0].cols;
-    maxY = (float) sphereImages[0].rows;
-
-    for (int i = 0; i < sphereImages.size(); i++) {
-        // rohy obrazku 2
-        vector< Vec3d> corners;
-        corners.push_back(Vec3d(0, 0, 1));
-        corners.push_back(Vec3d(sphereImages[i].cols, 0, 1));
-        corners.push_back(Vec3d(sphereImages[i].cols, sphereImages[i].rows, 1));
-        corners.push_back(Vec3d(0, sphereImages[i].rows, 1));
-
-        if (i > 1) {
-            homography = homographys[i - 1] * homography;
-        }
-
-        for (int j = 0; j < (int) corners.size(); j++) {
-            Mat projResult = homography.inv() * Mat(corners[j]);
-
-            minX = std::min(minX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
-            maxX = std::max(maxX, (float) (projResult.at<double>(0) / projResult.at<double>(2)));
-            minY = std::min(minY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
-            maxY = std::max(maxY, (float) (projResult.at<double>(1) / projResult.at<double>(2)));
-        }
-
-        translateMatrix.at<double>(0, 2) = (double) -minX;
-        translateMatrix.at<double>(1, 2) = (double) -minY;
-    }
-
-
-    homographys[0].copyTo(homography);
-
+    Mat outputBuffer = Mat::zeros(height, width, CV_8UC3); //Vycistim si abych nemel v pozadi binarni smeti.
     for (int i = 0; i < sphereImages.size(); i++) {
 
-        if (i > 1) {
-            homography = homographys[i - 1] * homography;
-        }
+        homography = homographies[i];
 
-        if (i > 0)
-            warpPerspective(sphereImages[i], outputs[i], translateMatrix * homography.inv(), outputs[i].size(), 1, BORDER_TRANSPARENT);
-        else
-            warpPerspective(sphereImages[i], outputs[i], translateMatrix, outputs[i].size(), 1, BORDER_TRANSPARENT);
-
+        warpPerspective(sphereImages[i], outputBuffer, transformationMatrix * homography.inv(), outputBuffer.size(), 1, BORDER_TRANSPARENT);
     }
-    Mat finalImg = outputs[outputs.size() - 1 ];
 
-    for (int i = outputs.size() - 1; i >= 0; i--) {
-        for (int j = 0; j < outputs[i].rows; j++) {
-            for (int k = 0; k < outputs[i].cols; k++) {
-                if ((outputs[i].at<Vec3b>(j, k)[0] || outputs[i].at<Vec3b>(j, k)[1] || outputs[i].at<Vec3b>(j, k)[2])/* &&
-                       (!finalImg.at<Vec3b>(j,k)[0] && !finalImg.at<Vec3b>(j,k)[1] && !finalImg.at<Vec3b>(j,k)[2]) */) {
-                    finalImg.at<Vec3b>(j, k) = outputs[i].at<Vec3b>(j, k);
-                }
-            }
-        }
-
-        string m = to_string(i);
-        cerr << i << endl;
-        //            imshow(m.c_str(),outputs[i]);
-    }
+    Mat finalImg = outputBuffer;
 
     vector<int> outputParams;
     outputParams.push_back(CV_IMWRITE_JPEG_QUALITY);
     imwrite(outputName, finalImg, outputParams);
-    imshow("MERGED", finalImg);
+#if VISUAL_DEBUG
+    imshowScaled("MERGED", finalImg);
     waitKey();
+#endif
 }
