@@ -1,37 +1,40 @@
 # Nazvy zdrojovych souboru pro jednotlive casti ukolu
-SRC_FILE2=main.cpp
+SRC=main.cpp
 
 # Nazvy vystupnich souboru pro jednotlive casti ukolu
-TARGET2=main
+TARGET=stitcher
 
-# Nastavte vstupnĂ­ parametry potĹebnĂŠ pro spuĹĄtÄnĂ­ aplikace, pokud chcete spouĹĄtÄt pomoci Makefile
-TARGET2_ARGUMENTS= IMG2.jpg IMG1.jpg chimney.jpg
-TARGET2_ARGUMENTS1= 1.JPG 2.JPG 3.JPG catedral.jpg #4.JPG 5.JPG 6.JPG
-TARGET2_ARGUMENTS2= 1_1.jpg 2_1.jpg 3_1.jpg 4_1.jpg mountains.jpg  #5_1.jpg #6_1.jpg 7_1.jpg
-TARGET2_SHANG = shanghai01.jpg shanghai02.jpg shanghai03.jpg shanghai.jpg
+TARGET_FILES=shanghai.jpg mountains.jpg
+MOUNTAIN_FILES = 1_1.jpg 2_1.jpg 3_1.jpg 4_1.jpg
+SHANGHAI_FILES = shanghai01.jpg shanghai02.jpg shanghai03.jpg
+
+DOC_FILES = doc/img doc/Makefile doc/Makefile.mk doc/czplain.bst doc/dokumentace.pdf \
+    doc/dokumentace.tex doc/img/logo-eps-converted-to.pdf doc/img/logo.eps doc/prezentace.tex \
+    doc/title.tex doc/zdroje.bib
+
+
 # Parametry prekladace
 CC=g++ 
 CFLAGS=`pkg-config --cflags opencv` -std=gnu++0x -g
 LIBS=`pkg-config --libs opencv`
 
-# Kompilace obou detektoru
-all: $(TARGET2)
+.PHONY: $(TARGET_FILES) pack
 
-$(TARGET2): $(SRC_FILE2) 
+# Kompilace obou detektoru
+all: $(TARGET)
+
+$(TARGET): $(SRC) 
 	$(CC) $(CFLAGS)  $^ -o $@ $(LIBS)
 
-
 clean:
-	rm -f *.o *~ $(TARGET2)
+	rm -f *.o *~ $(TARGET) $(TARGET_FILES)
 
-run1: $(TARGET2)
-	./$(TARGET2) $(TARGET2_ARGUMENTS1)	
+shanghai.jpg: $(TARGET)
+	./$(TARGET) $(SHANGHAI_FILES) $@
 
-run2: $(TARGET2)
-	./$(TARGET2) $(TARGET2_ARGUMENTS)
+mountains.jpg: $(TARGET)
+	./$(TARGET) $(MOUNTAIN_FILES) $@
+	
+pack:
+	tar cvzf project.tar.gz $(SRC) $(SHANGHAI_FILES) $(MOUNTAIN_FILES) Makefile README.md $(DOC_FILES)
 
-run3: $(TARGET2)
-	./$(TARGET2) $(TARGET2_ARGUMENTS2)
-
-shang: $(TARGET2)
-	./$(TARGET2) $(TARGET2_SHANG)

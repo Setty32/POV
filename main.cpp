@@ -165,11 +165,11 @@ void projectOnSphere(Mat inputPic, Mat &outputPic, double CamDist, double FocLen
         bottomRight.y = 0;
     }
 
-    topLeft.x = middle.x - topLeft.x;
-    topLeft.y = middle.y - topLeft.y;
+    topLeft.x = middle.x - topLeft.x + 1;
+    topLeft.y = middle.y - topLeft.y + 1;
 
-    bottomRight.x = middle.x - bottomRight.x;
-    bottomRight.y = middle.y - bottomRight.y;
+    bottomRight.x = middle.x - bottomRight.x - 1;
+    bottomRight.y = middle.y - bottomRight.y - 1;
 
     // Ořezání černých okrajů
     Rect roi(topLeft, bottomRight);
